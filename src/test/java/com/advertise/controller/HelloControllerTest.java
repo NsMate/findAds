@@ -81,6 +81,18 @@ public class HelloControllerTest {
 
         assertEquals(OK, rsp.getStatus());
         assertEquals("Hello World", response.body());
-        System.out.println(rsp.getBody());
+    }
+
+    @Test
+    void uponSuccessfulAuthenticationUserGetsAccessTokenAndRefreshToken() throws ParseException {
+        UsernamePasswordCredentials creds = new UsernamePasswordCredentials("alice", "testPass");
+        HttpRequest<?> request = HttpRequest.POST("/login", creds);
+        BearerAccessRefreshToken rsp = loginClient.toBlocking().retrieve(request, BearerAccessRefreshToken.class);
+
+        assertEquals("alice", rsp.getUsername());
+        assertNotNull(rsp.getAccessToken());
+        assertNotNull(rsp.getRefreshToken());
+
+        assertInstanceOf(SignedJWT.class, JWTParser.parse(rsp.getAccessToken()));
     }
 }

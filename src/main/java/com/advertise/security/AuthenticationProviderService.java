@@ -56,8 +56,8 @@ public class AuthenticationProviderService<B> implements HttpRequestReactiveAuth
             }
 
             User user = userOpt.get();
-            if (passwordEncoder.matches(password, user.getPasswordHash())) {
-                emitter.next(AuthenticationResponse.success(user.getName()));
+            if (passwordEncoder.matches(password, user.passwordHash())) {
+                emitter.next(AuthenticationResponse.success(user.name()));
                 emitter.complete();
             } else {
                 emitter.error(new AuthenticationException(
