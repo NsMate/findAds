@@ -1,12 +1,12 @@
 package com.advertise.service;
 
+import com.advertise.dto.register.RegisterRequest;
 import com.advertise.entity.User;
+import com.advertise.exception.UserAlreadyExistsException;
 import com.advertise.repository.UserRepository;
 import com.advertise.security.encoder.PasswordEncoder;
 import jakarta.inject.Singleton;
 import jakarta.transaction.Transactional;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
 
 import java.time.Instant;
 
@@ -22,22 +22,23 @@ public class RegisterService {
     }
 
     @Transactional
-    public void register(@Email String email, @NotBlank String username,
-                  @NotBlank String rawPassword) {
+    public User register(RegisterRequest registerRequest) {
 
-        if (userRepository.findByNameEquals(username).isPresent()) {
-            throw new RuntimeException("Username '" + username + "' is already taken");
+        if (userRepository.findByNameEquals(registerRequest.username()).isPresent()) {
+            throw new UserAlreadyExistsException("Username '" + registerRequest.username() + "' is already taken");
         }
 
-        if (userRepository.findByEmailEquals(email).isPresent()) {
-            throw new RuntimeException("Email '" + email + "' is already registered");
+        if (userRepository.findByEmailEquals(registerRequest.email()).isPresent()) {
+            throw new RuntimeException("Email '" + registerRequest.email() + "' is already registered");
         }
 
 
-        String encodedPassword = passwordEncoder.encode(rawPassword);
-        User user = new User(null, email, username, encodedPassword, Instant.now());
-        User savedUser = userRepository.save(user);
-
-        System.out.println("Created user: " + email);
+        String encodedPassword = passwordEncoder.encode(registerRequest.password());
+        User user = new User(null,
+                registerRequest.email(),
+                registerRequest.username(),
+                encodedPassword,
+                Instant.now());
+        return userRepository.save(user);
     }
 }

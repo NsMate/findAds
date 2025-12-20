@@ -30,8 +30,13 @@ public class TokenPersistence implements RefreshTokenPersistence {
                 event.getRefreshToken() != null &&
                 event.getAuthentication() != null &&
                 event.getAuthentication().getName() != null) {
+
+            String username = event.getAuthentication().getName();
             String payload = event.getRefreshToken();
-            refreshTokenRepository.save(event.getAuthentication().getName(), payload, false);
+
+            refreshTokenRepository.deleteByUsername(username);
+
+            refreshTokenRepository.save(username, payload, false);
         }
     }
 
@@ -51,5 +56,9 @@ public class TokenPersistence implements RefreshTokenPersistence {
                 emitter.error(new OauthErrorResponseException(INVALID_GRANT, "refresh token not found", null));
             }
         }, FluxSink.OverflowStrategy.ERROR);
+    }
+
+    public void revokeAllForUser(String username) {
+        refreshTokenRepository.deleteByUsername(username);
     }
 }

@@ -5,13 +5,16 @@ import io.micronaut.core.annotation.NonNull;
 import io.micronaut.data.jdbc.annotation.JdbcRepository;
 import io.micronaut.data.model.query.builder.sql.Dialect;
 import io.micronaut.data.repository.CrudRepository;
+import io.micronaut.validation.Validated;
 import jakarta.transaction.Transactional;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
+import java.time.Instant;
 import java.util.Optional;
 
 @JdbcRepository(dialect = Dialect.POSTGRES)
+@Validated
 public interface RefreshTokenRepository extends CrudRepository<RefreshToken, Long> {
 
     @Transactional
@@ -21,6 +24,7 @@ public interface RefreshTokenRepository extends CrudRepository<RefreshToken, Lon
 
     Optional<RefreshToken> findByRefreshToken(@NonNull @NotBlank String refreshToken);
 
-    long updateByUsername(@NonNull @NotBlank String username,
-                          boolean revoked);
+    void deleteByUsername(@NonNull @NotBlank String username);
+
+    long deleteByDateCreatedBefore(@NonNull Instant createdAt);
 }
