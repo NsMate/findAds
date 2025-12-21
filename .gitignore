@@ -9,9 +9,10 @@ out/
 *.iml
 *.ipr
 *.iws
+.env
 .project
 .settings
 .classpath
 .factorypath
-*/main/resources/application-test.properties
+src/test/resources/application-test.properties
 */main/resources/application-local.properties

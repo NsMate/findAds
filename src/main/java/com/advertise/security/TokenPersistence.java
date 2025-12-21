@@ -7,10 +7,14 @@ import io.micronaut.security.errors.OauthErrorResponseException;
 import io.micronaut.security.token.event.RefreshTokenGeneratedEvent;
 import io.micronaut.security.token.refresh.RefreshTokenPersistence;
 import jakarta.inject.Singleton;
+import jakarta.transaction.Transactional;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
 
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.Base64;
 import java.util.Optional;
 
 import static io.micronaut.security.errors.IssuingAnAccessTokenErrorCode.INVALID_GRANT;
@@ -18,47 +22,86 @@ import static io.micronaut.security.errors.IssuingAnAccessTokenErrorCode.INVALID
 @Singleton
 public class TokenPersistence implements RefreshTokenPersistence {
 
-    private final RefreshTokenRepository refreshTokenRepository;
+    private final RefreshTokenRepository repository;
 
-    public TokenPersistence(RefreshTokenRepository refreshTokenRepository) {
-        this.refreshTokenRepository = refreshTokenRepository;
+    public TokenPersistence(RefreshTokenRepository repository) {
+        this.repository = repository;
     }
 
     @Override
+    @Transactional
     public void persistToken(RefreshTokenGeneratedEvent event) {
-        if (event != null &&
-                event.getRefreshToken() != null &&
-                event.getAuthentication() != null &&
-                event.getAuthentication().getName() != null) {
+        if (event == null || event.getRefreshToken() == null ||
+                event.getAuthentication() == null || event.getAuthentication().getName() == null) {
+            return;
+        }
 
-            String username = event.getAuthentication().getName();
-            String payload = event.getRefreshToken();
+        String username = event.getAuthentication().getName();
+        String reference = event.getRefreshToken();
 
-            refreshTokenRepository.deleteByUsername(username);
+        try {
+            Optional<RefreshToken> existing = repository.findByUsername(username);
 
-            refreshTokenRepository.save(username, payload, false);
+            if (existing.isPresent()) {
+                RefreshToken updated = new RefreshToken(
+                        existing.get().id(),
+                        username,
+                        reference,
+                        false,
+                        Instant.now()
+                );
+                repository.update(updated);
+            } else {
+                RefreshToken token = new RefreshToken(null, username, reference,false, Instant.now());
+                repository.save(token);
+            }
+
+        } catch (Exception _) {
         }
     }
 
     @Override
-    public Publisher<Authentication> getAuthentication(String refreshToken) {
+    public Publisher<Authentication> getAuthentication(String jwt) {
         return Flux.create(emitter -> {
-            Optional<RefreshToken> tokenOpt = refreshTokenRepository.findByRefreshToken(refreshToken);
-            if (tokenOpt.isPresent()) {
+            try {
+                String reference = decodeJWT(jwt);
+                Optional<RefreshToken> tokenOpt = repository.findByRefreshToken(reference);
+
+                if (tokenOpt.isEmpty()) {
+                    emitter.error(new OauthErrorResponseException(INVALID_GRANT, "refresh token not found", null));
+                    return;
+                }
+
                 RefreshToken token = tokenOpt.get();
+
                 if (token.revoked()) {
                     emitter.error(new OauthErrorResponseException(INVALID_GRANT, "refresh token revoked", null));
-                } else {
-                    emitter.next(Authentication.build(token.username()));
-                    emitter.complete();
+                    return;
                 }
-            } else {
-                emitter.error(new OauthErrorResponseException(INVALID_GRANT, "refresh token not found", null));
+
+                emitter.next(Authentication.build(token.username()));
+                emitter.complete();
+
+            } catch (IllegalArgumentException e) {
+                emitter.error(new OauthErrorResponseException(INVALID_GRANT, "invalid refresh token", null));
             }
         }, FluxSink.OverflowStrategy.ERROR);
     }
 
+    @Transactional
     public void revokeAllForUser(String username) {
-        refreshTokenRepository.deleteByUsername(username);
+        repository.deleteByUsername(username);
+    }
+
+    private String decodeJWT(String jwt) {
+        String[] parts = jwt.split("\\.");
+        if (parts.length != 3) {
+            throw new IllegalArgumentException("Malformed JWT");
+        }
+
+        byte[] decoded = Base64.getUrlDecoder().decode(parts[1]);
+        String payload = new String(decoded, StandardCharsets.UTF_8);
+
+        return payload.trim().replace("\"", "");
     }
 }

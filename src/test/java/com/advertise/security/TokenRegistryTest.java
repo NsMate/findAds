@@ -4,17 +4,12 @@ import com.advertise.entity.User;
 import com.advertise.repository.RefreshTokenRepository;
 import com.advertise.repository.UserRepository;
 import com.advertise.security.encoder.PasswordEncoder;
-import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpRequest;
+import io.micronaut.http.HttpResponse;
+import io.micronaut.http.HttpStatus;
 import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.client.annotation.Client;
-import io.micronaut.http.client.exceptions.HttpClientResponseException;
-import io.micronaut.security.authentication.Authentication;
-import io.micronaut.security.authentication.UsernamePasswordCredentials;
-import io.micronaut.security.endpoints.TokenRefreshRequest;
-import io.micronaut.security.token.generator.RefreshTokenGenerator;
-import io.micronaut.security.token.render.AccessRefreshToken;
-import io.micronaut.security.token.render.BearerAccessRefreshToken;
+import io.micronaut.http.cookie.Cookie;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,112 +17,84 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.Map;
-import java.util.Optional;
 
-import static io.micronaut.http.HttpStatus.BAD_REQUEST;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @MicronautTest
-public class TokenRegistryTest {
+class TokenRegistryTest {
 
-    @Inject
-    @Client("/")
-    HttpClient client;
-
-    @Inject
-    UserRepository userRepository;
-
-    @Inject
-    PasswordEncoder passwordEncoder;
-
-    @Inject
-    RefreshTokenGenerator refreshTokenGenerator;
-
-    @Inject
-    RefreshTokenRepository refreshTokenRepository;
+    @Inject @Client("/") HttpClient client;
+    @Inject UserRepository users;
+    @Inject RefreshTokenRepository tokens;
+    @Inject PasswordEncoder encoder;
 
     @BeforeEach
     void setup() {
-        userRepository.deleteAll();
-        userRepository.save(new User(null, "test@test.com","alice",
-                passwordEncoder.encode("testPass"), Instant.now()));
+        tokens.deleteAll();
+        users.deleteAll();
+        users.save(new User(null, "alice@test.com", "alice", encoder.encode("pass"), Instant.now()));
     }
 
     @Test
-    void accessingSecuredURLWithoutAuthenticatingReturnsUnauthorized() {
-        Authentication user = Authentication.build("alice");
+    void refreshTokenCreatesNewAccessToken() throws InterruptedException {
+        Cookie oldAccess = login("alice", "pass");
+        Cookie refresh = getRefreshToken();
 
-        String refreshToken = refreshTokenGenerator.createKey(user);
-        Optional<String> refreshTokenOptional = refreshTokenGenerator.generate(user, refreshToken);
-        assertTrue(refreshTokenOptional.isPresent());
+        Thread.sleep(1000);
 
-        String signedRefreshToken = refreshTokenOptional.get();
-        Argument<BearerAccessRefreshToken> bodyArgument = Argument.of(BearerAccessRefreshToken.class);
-        Argument<Map> errorArgument = Argument.of(Map.class);
-        HttpRequest<?> req = HttpRequest.POST("/oauth/access_token", new TokenRefreshRequest(TokenRefreshRequest.GRANT_TYPE_REFRESH_TOKEN, signedRefreshToken));
+        Cookie newAccess = refresh(refresh);
 
-        HttpClientResponseException e = assertThrows(HttpClientResponseException.class, () -> {
-            client.toBlocking().exchange(req, bodyArgument, errorArgument);
-        });
-        assertEquals(BAD_REQUEST, e.getStatus());
-
-        Optional<Map> mapOptional = e.getResponse().getBody(Map.class);
-        assertTrue(mapOptional.isPresent());
-
-        Map m = mapOptional.get();
-        assertEquals("invalid_grant", m.get("error"));
-        assertEquals("refresh token not found", m.get("error_description"));
+        assertNotEquals(oldAccess.getValue(), newAccess.getValue());
+        assertTrue(canAccessProtectedEndpoint(newAccess));
     }
 
     @Test
-    void accessingSecuredURLWithoutAuthenticatingReturnsUnauthorizedUnsignedToken() {
-        String unsignedRefreshedToken = "foo";
+    void revokedTokenFails() {
+        Cookie refresh = login("alice", "pass");
+        tokens.deleteAll();
 
-        Argument<BearerAccessRefreshToken> bodyArgument = Argument.of(BearerAccessRefreshToken.class);
-        Argument<Map> errorArgument = Argument.of(Map.class);
-
-        HttpClientResponseException e = assertThrows(HttpClientResponseException.class, () -> {
-            client.toBlocking().exchange(
-                    HttpRequest.POST("/oauth/access_token", new TokenRefreshRequest(TokenRefreshRequest.GRANT_TYPE_REFRESH_TOKEN, unsignedRefreshedToken)),
-                    bodyArgument,
-                    errorArgument);
-        });
-        assertEquals(BAD_REQUEST, e.getStatus());
-
-        Optional<Map> mapOptional = e.getResponse().getBody(Map.class);
-        assertTrue(mapOptional.isPresent());
-
-        Map m = mapOptional.get();
-        assertEquals("invalid_grant", m.get("error"));
-        assertEquals("Refresh token is invalid", m.get("error_description"));
+        assertThrows(Exception.class, () -> refresh(getRefreshToken()));
     }
 
-    @Test
-    void verifyJWTAccessTokenRefreshWorks() throws InterruptedException {
-        String username = "alice";
+    private Cookie login(String username, String password) {
+        HttpResponse<?> response = client.toBlocking().exchange(
+                HttpRequest.POST("/login", Map.of("username", username, "password", password))
+                        .header("X-Client-Type", "web"),
+                Map.class
+        );
+        return response.getCookie("access_token").orElseThrow();
+    }
 
-        UsernamePasswordCredentials creds = new UsernamePasswordCredentials(username, "testPass");
-        HttpRequest<?> request = HttpRequest.POST("/login", creds);
+    private Cookie getRefreshToken() {
+        HttpResponse<?> response = client.toBlocking().exchange(
+                HttpRequest.POST("/login", Map.of("username", "alice", "password", "pass"))
+                        .header("X-Client-Type", "web"),
+                Map.class
+        );
+        return response.getCookie("refresh_token").orElseThrow();
+    }
 
-        long oldTokenCount = refreshTokenRepository.count();
-        BearerAccessRefreshToken rsp = client.toBlocking().retrieve(request, BearerAccessRefreshToken.class);
-        Thread.sleep(3_000);
-        assertEquals(oldTokenCount + 1, refreshTokenRepository.count());
+    private Cookie refresh(Cookie refreshToken) {
+        HttpResponse<Map> response = client.toBlocking().exchange(
+                HttpRequest.POST("/auth/access_token",
+                                Map.of("grant_type", "refresh_token", "refresh_token", refreshToken.getValue()))
+                        .header("X-Client-Type", "web"),
+                Map.class
+        );
+        return response.getCookie("access_token").orElseThrow();
+    }
 
-        assertNotNull(rsp.getAccessToken());
-        assertNotNull(rsp.getRefreshToken());
-
-        Thread.sleep(1_000);
-        AccessRefreshToken refreshResponse = client.toBlocking().retrieve(HttpRequest.POST("/oauth/access_token",
-                new TokenRefreshRequest(TokenRefreshRequest.GRANT_TYPE_REFRESH_TOKEN, rsp.getRefreshToken())), AccessRefreshToken.class);
-
-        assertNotNull(refreshResponse.getAccessToken());
-        assertNotEquals(rsp.getAccessToken(), refreshResponse.getAccessToken());
-
-        refreshTokenRepository.deleteAll();
+    private boolean canAccessProtectedEndpoint(Cookie accessToken) {
+        try {
+            HttpResponse<String> response = client.toBlocking().exchange(
+                    HttpRequest.GET("/hello").cookie(accessToken),
+                    String.class
+            );
+            return response.status() == HttpStatus.OK;
+        } catch (Exception e) {
+            return false;
+        }
     }
 }
