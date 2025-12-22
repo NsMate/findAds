@@ -56,7 +56,8 @@ public class TokenPersistence implements RefreshTokenPersistence {
                 repository.save(token);
             }
 
-        } catch (Exception _) {
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage(), e);
         }
     }
 
@@ -86,11 +87,6 @@ public class TokenPersistence implements RefreshTokenPersistence {
                 emitter.error(new OauthErrorResponseException(INVALID_GRANT, "invalid refresh token", null));
             }
         }, FluxSink.OverflowStrategy.ERROR);
-    }
-
-    @Transactional
-    public void revokeAllForUser(String username) {
-        repository.deleteByUsername(username);
     }
 
     private String decodeJWT(String jwt) {
