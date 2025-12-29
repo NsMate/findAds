@@ -15,11 +15,11 @@ import java.util.Optional;
 @Validated
 public interface RefreshTokenRepository extends CrudRepository<RefreshToken, Long> {
 
-    Optional<RefreshToken> findByRefreshToken(@NonNull @NotBlank String refreshToken);
+	Optional<RefreshToken> findByRefreshToken(@NonNull @NotBlank String refreshToken);
 
-    int updateByUsername(@NotBlank String username, @NonNull @NotBlank String refreshToken);
+	int updateByUsername(@NotBlank String username, @NonNull @NotBlank String refreshToken);
 
-    void deleteAllByUsername(@NonNull @NotBlank String username);
+	void deleteAllByUsername(@NonNull @NotBlank String username);
 
-    long deleteByDateCreatedBefore(@NonNull Instant createdAt);
+	long deleteByDateCreatedBefore(@NonNull Instant createdAt);
 }

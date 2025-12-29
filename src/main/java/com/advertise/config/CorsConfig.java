@@ -11,28 +11,21 @@ import java.util.Collections;
 @Factory
 public class CorsConfig {
 
-    @Singleton
-    public CorsOriginConfiguration corsOriginConfiguration() {
-        CorsOriginConfiguration config = new CorsOriginConfiguration();
+	@Singleton
+	public CorsOriginConfiguration corsOriginConfiguration() {
+		CorsOriginConfiguration config = new CorsOriginConfiguration();
 
-        config.setAllowedOrigins(Arrays.asList(
-                "http://localhost:3000",
-                "http://localhost:5173"
-        ));
+		config.setAllowedOrigins(Arrays.asList("http://localhost:3000", "http://localhost:5173"));
 
-        config.setAllowedMethods(Arrays.asList(
-                HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE, HttpMethod.OPTIONS
-        ));
+		config.setAllowedMethods(
+				Arrays.asList(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE, HttpMethod.OPTIONS));
 
-        config.setAllowedHeaders(Arrays.asList(
-                "Content-Type",
-                "Authorization"
-        ));
+		config.setAllowedHeaders(Arrays.asList("Content-Type", "Authorization"));
 
-        config.setExposedHeaders(Collections.singletonList("Set-Cookie"));
+		config.setExposedHeaders(Collections.singletonList("Set-Cookie"));
 
-        config.setAllowCredentials(true);
+		config.setAllowCredentials(true);
 
-        return config;
-    }
+		return config;
+	}
 }

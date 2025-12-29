@@ -12,22 +12,22 @@ import java.time.temporal.ChronoUnit;
 @Singleton
 public class TokenCleanupTask {
 
-    private static final Logger LOG = LoggerFactory.getLogger(TokenCleanupTask.class);
+	private static final Logger LOG = LoggerFactory.getLogger(TokenCleanupTask.class);
 
-    private final RefreshTokenRepository refreshTokenRepository;
+	private final RefreshTokenRepository refreshTokenRepository;
 
-    public TokenCleanupTask(RefreshTokenRepository refreshTokenRepository) {
-        this.refreshTokenRepository = refreshTokenRepository;
-    }
+	public TokenCleanupTask(RefreshTokenRepository refreshTokenRepository) {
+		this.refreshTokenRepository = refreshTokenRepository;
+	}
 
-    @Scheduled(cron = "0 0 2 * * ?")
-    public void cleanupOldTokens() {
-        LOG.info("Starting cleanup of old refresh tokens");
+	@Scheduled(cron = "0 0 2 * * ?")
+	public void cleanupOldTokens() {
+		LOG.info("Starting cleanup of old refresh tokens");
 
-        Instant oneDayAgo = Instant.now().minus(1, ChronoUnit.DAYS);
+		Instant oneDayAgo = Instant.now().minus(1, ChronoUnit.DAYS);
 
-        long deletedCount = refreshTokenRepository.deleteByDateCreatedBefore(oneDayAgo);
+		long deletedCount = refreshTokenRepository.deleteByDateCreatedBefore(oneDayAgo);
 
-        LOG.info("Deleted {} old refresh tokens", deletedCount);
-    }
+		LOG.info("Deleted {} old refresh tokens", deletedCount);
+	}
 }

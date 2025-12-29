@@ -13,6 +13,6 @@ import java.util.Optional;
 @Validated
 public interface UserRepository extends CrudRepository<User, Long> {
 
-    Optional<User> findByNameEquals(@NotBlank String username);
-    Optional<User> findByEmailEquals(@NotBlank String email);
+	Optional<User> findByNameEquals(@NotBlank String username);
+	Optional<User> findByEmailEquals(@NotBlank String email);
 }

@@ -10,11 +10,6 @@ import java.time.Instant;
 
 @MappedEntity("users")
 @Serdeable
-public record User (
-        @Id @GeneratedValue Long id,
-        @NonNull String email,
-        @NonNull String name,
-        @NonNull String passwordHash,
-        @NonNull Instant createdAt
-) {
+public record User(@Id @GeneratedValue Long id, @NonNull String email, @NonNull String name,
+		@NonNull String passwordHash, @NonNull Instant createdAt) {
 }

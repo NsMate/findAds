@@ -11,10 +11,7 @@ import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 
 @MappedEntity("refresh_token")
-public record RefreshToken(
-    @Id @GeneratedValue @NonNull Long id,
-    @NonNull @NotBlank String username,
-    @NonNull @NotBlank String refreshToken,
-    @NonNull @NotNull Boolean revoked,
-    @DateCreated @NonNull @NotNull Instant dateCreated
-) {}
+public record RefreshToken(@Id @GeneratedValue @NonNull Long id, @NonNull @NotBlank String username,
+		@NonNull @NotBlank String refreshToken, @NonNull @NotNull Boolean revoked,
+		@DateCreated @NonNull @NotNull Instant dateCreated) {
+}

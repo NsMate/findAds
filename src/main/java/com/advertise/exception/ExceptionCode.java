@@ -1,7 +1,7 @@
 package com.advertise.exception;
 
 public interface ExceptionCode {
-    String name();
+	String name();
 
-    int getHttpStatusCode();
+	int getHttpStatusCode();
 }

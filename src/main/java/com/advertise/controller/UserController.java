@@ -37,96 +37,77 @@ import java.util.Map;
 @Controller
 public class UserController {
 
-    private static final Duration REFRESH_TOKEN_TTL = Duration.ofDays(7);
+	private static final Duration REFRESH_TOKEN_TTL = Duration.ofDays(7);
 
-    private final RegisterService registerService;
-    private final AuthenticationProviderService authenticationProviderService;
-    private final AccessRefreshTokenGenerator tokenGenerator;
-    private final RefreshTokenRepository refreshTokenRepository;
+	private final RegisterService registerService;
+	private final AuthenticationProviderService authenticationProviderService;
+	private final AccessRefreshTokenGenerator tokenGenerator;
+	private final RefreshTokenRepository refreshTokenRepository;
 
-    @Inject
-    public UserController(
-            RegisterService registerService,
-            AuthenticationProviderService authenticationProviderService,
-            AccessRefreshTokenGenerator tokenGenerator, RefreshTokenRepository refreshTokenRepository) {
-        this.registerService = registerService;
-        this.authenticationProviderService = authenticationProviderService;
-        this.tokenGenerator = tokenGenerator;
-        this.refreshTokenRepository = refreshTokenRepository;
-    }
+	@Inject
+	public UserController(RegisterService registerService, AuthenticationProviderService authenticationProviderService,
+			AccessRefreshTokenGenerator tokenGenerator, RefreshTokenRepository refreshTokenRepository) {
+		this.registerService = registerService;
+		this.authenticationProviderService = authenticationProviderService;
+		this.tokenGenerator = tokenGenerator;
+		this.refreshTokenRepository = refreshTokenRepository;
+	}
 
-    @Post("/login")
-    @Consumes({"application/json", "application/x-www-form-urlencoded"})
-    @Secured(SecurityRule.IS_ANONYMOUS)
-    @SingleResult
-    public Publisher<MutableHttpResponse<?>> login(@Body UsernamePasswordCredentials creds, HttpRequest<?> request) {
-        return Mono.from(authenticationProviderService.authenticate(request, creds))
-                .map(authResponse -> {
-                    if (!(authResponse instanceof AuthenticationResponse auth) ||
-                            !auth.isAuthenticated() ||
-                            auth.getAuthentication().isEmpty()) {
-                        return HttpResponse.unauthorized();
-                    }
+	@Post("/login")
+	@Consumes({"application/json", "application/x-www-form-urlencoded"})
+	@Secured(SecurityRule.IS_ANONYMOUS)
+	@SingleResult
+	public Publisher<MutableHttpResponse<?>> login(@Body UsernamePasswordCredentials creds, HttpRequest<?> request) {
+		return Mono.from(authenticationProviderService.authenticate(request, creds)).map(authResponse -> {
+			if (!(authResponse instanceof AuthenticationResponse auth) || !auth.isAuthenticated()
+					|| auth.getAuthentication().isEmpty()) {
+				return HttpResponse.unauthorized();
+			}
 
-                    BearerAccessRefreshToken tokens = (BearerAccessRefreshToken)
-                            tokenGenerator.generate(auth.getAuthentication().get()).orElseThrow();
+			BearerAccessRefreshToken tokens = (BearerAccessRefreshToken) tokenGenerator
+					.generate(auth.getAuthentication().get()).orElseThrow();
 
-                    MutableHttpResponse<Map<String, String>> response = HttpResponse.ok(
-                            Map.of("message", "Login successful", "username", tokens.getUsername(),
-                                    "access_token", tokens.getAccessToken())
-                    );
+			MutableHttpResponse<Map<String, String>> response = HttpResponse.ok(Map.of("message", "Login successful",
+					"username", tokens.getUsername(), "access_token", tokens.getAccessToken()));
 
-                    response.cookie(createCookie("refresh_token", tokens.getRefreshToken(), REFRESH_TOKEN_TTL));
+			response.cookie(createCookie("refresh_token", tokens.getRefreshToken(), REFRESH_TOKEN_TTL));
 
-                    return response;
-                });
-    }
+			return response;
+		});
+	}
 
-    @Post("/logout")
-    @Secured(SecurityRule.IS_AUTHENTICATED)
-    public HttpResponse<?> logout(Principal principal) {
-        refreshTokenRepository.deleteAllByUsername(principal.getName());
+	@Post("/logout")
+	@Secured(SecurityRule.IS_AUTHENTICATED)
+	public HttpResponse<?> logout(Principal principal) {
+		refreshTokenRepository.deleteAllByUsername(principal.getName());
 
-        MutableHttpResponse<Map<String, String>> response = HttpResponse.ok(
-                Map.of("message", "Logged out successfully")
-        );
+		MutableHttpResponse<Map<String, String>> response = HttpResponse
+				.ok(Map.of("message", "Logged out successfully"));
 
-        response.cookie(expireCookie("refresh_token"));
+		response.cookie(expireCookie("refresh_token"));
 
-        return response;
-    }
+		return response;
+	}
 
-    @Post("/register")
-    @Secured(SecurityRule.IS_ANONYMOUS)
-    public HttpResponse<?> register(@Valid @Body RegisterRequest request) {
-        try {
-            User user = registerService.register(request);
-            return HttpResponse.created(new RegisterResponse(
-                    user.name(),
-                    user.email(),
-                    "User registered successfully. Please login."
-            ));
-        } catch (UserAlreadyExistsException e) {
-            return HttpResponse.badRequest(new ErrorResponse(DefaultErrorCodes.METHOD_NOT_ALLOWED, e.getMessage()));
-        } catch (Exception e) {
-            return HttpResponse.serverError(new ErrorResponse(DefaultErrorCodes.INTERNAL_SERVER_ERROR, e.getMessage()));
-        }
-    }
+	@Post("/register")
+	@Secured(SecurityRule.IS_ANONYMOUS)
+	public HttpResponse<?> register(@Valid @Body RegisterRequest request) {
+		try {
+			User user = registerService.register(request);
+			return HttpResponse.created(
+					new RegisterResponse(user.name(), user.email(), "User registered successfully. Please login."));
+		} catch (UserAlreadyExistsException e) {
+			return HttpResponse.badRequest(new ErrorResponse(DefaultErrorCodes.METHOD_NOT_ALLOWED, e.getMessage()));
+		} catch (Exception e) {
+			return HttpResponse.serverError(new ErrorResponse(DefaultErrorCodes.INTERNAL_SERVER_ERROR, e.getMessage()));
+		}
+	}
 
-    private Cookie createCookie(String name, String value, Duration maxAge) {
-        return Cookie.of(name, value)
-                .httpOnly(true)
-                .secure(false)
-                .path("/")
-                .maxAge(maxAge)
-                .sameSite(SameSite.Strict);
-    }
+	private Cookie createCookie(String name, String value, Duration maxAge) {
+		return Cookie.of(name, value).httpOnly(true).secure(false).path("/").maxAge(maxAge).sameSite(SameSite.Strict);
+	}
 
-    private Cookie expireCookie(String name) {
-        return Cookie.of(name, "")
-                .httpOnly(true)
-                .secure(false)
-                .path("/")
-                .maxAge(Duration.ZERO);
-    }
+	private Cookie expireCookie(String name) {
+		return Cookie.of(name, "").httpOnly(true).secure(false).path("/").maxAge(Duration.ZERO);
+	}
 }

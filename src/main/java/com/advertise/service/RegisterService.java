@@ -13,32 +13,27 @@ import java.time.Instant;
 @Singleton
 public class RegisterService {
 
-    private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
+	private final UserRepository userRepository;
+	private final PasswordEncoder passwordEncoder;
 
-    public RegisterService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
-        this.userRepository = userRepository;
-        this.passwordEncoder = passwordEncoder;
-    }
+	public RegisterService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+		this.userRepository = userRepository;
+		this.passwordEncoder = passwordEncoder;
+	}
 
-    @Transactional
-    public User register(RegisterRequest registerRequest) {
+	@Transactional
+	public User register(RegisterRequest registerRequest) {
 
-        if (userRepository.findByNameEquals(registerRequest.username()).isPresent()) {
-            throw new UserAlreadyExistsException("Username '" + registerRequest.username() + "' is already taken");
-        }
+		if (userRepository.findByNameEquals(registerRequest.username()).isPresent()) {
+			throw new UserAlreadyExistsException("Username '" + registerRequest.username() + "' is already taken");
+		}
 
-        if (userRepository.findByEmailEquals(registerRequest.email()).isPresent()) {
-            throw new RuntimeException("Email '" + registerRequest.email() + "' is already registered");
-        }
+		if (userRepository.findByEmailEquals(registerRequest.email()).isPresent()) {
+			throw new RuntimeException("Email '" + registerRequest.email() + "' is already registered");
+		}
 
-
-        String encodedPassword = passwordEncoder.encode(registerRequest.password());
-        User user = new User(null,
-                registerRequest.email(),
-                registerRequest.username(),
-                encodedPassword,
-                Instant.now());
-        return userRepository.save(user);
-    }
+		String encodedPassword = passwordEncoder.encode(registerRequest.password());
+		User user = new User(null, registerRequest.email(), registerRequest.username(), encodedPassword, Instant.now());
+		return userRepository.save(user);
+	}
 }

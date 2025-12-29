@@ -19,59 +19,53 @@ import static io.micronaut.security.errors.IssuingAnAccessTokenErrorCode.INVALID
 @Singleton
 public class TokenPersistence implements RefreshTokenPersistence {
 
-    private final RefreshTokenRepository repository;
+	private final RefreshTokenRepository repository;
 
-    public TokenPersistence(RefreshTokenRepository repository) {
-        this.repository = repository;
-    }
+	public TokenPersistence(RefreshTokenRepository repository) {
+		this.repository = repository;
+	}
 
-    @Override
-    public void persistToken(RefreshTokenGeneratedEvent event) {
-        if (event == null || event.getRefreshToken() == null ||
-                event.getAuthentication() == null || event.getAuthentication().getName() == null) {
-            return;
-        }
+	@Override
+	public void persistToken(RefreshTokenGeneratedEvent event) {
+		if (event == null || event.getRefreshToken() == null || event.getAuthentication() == null
+				|| event.getAuthentication().getName() == null) {
+			return;
+		}
 
-        String username = event.getAuthentication().getName();
-        String reference = event.getRefreshToken();
+		String username = event.getAuthentication().getName();
+		String reference = event.getRefreshToken();
 
-        int updated = repository.updateByUsername(username, reference);
+		int updated = repository.updateByUsername(username, reference);
 
-        if (updated == 0) {
-            repository.save(new RefreshToken(
-                    null,
-                    username,
-                    reference,
-                    false,
-                    Instant.now()
-            ));
-        }
-    }
+		if (updated == 0) {
+			repository.save(new RefreshToken(null, username, reference, false, Instant.now()));
+		}
+	}
 
-    @Override
-    public Publisher<Authentication> getAuthentication(String jwt) {
-        return Flux.create(emitter -> {
-            try {
-                Optional<RefreshToken> tokenOpt = repository.findByRefreshToken(jwt);
+	@Override
+	public Publisher<Authentication> getAuthentication(String jwt) {
+		return Flux.create(emitter -> {
+			try {
+				Optional<RefreshToken> tokenOpt = repository.findByRefreshToken(jwt);
 
-                if (tokenOpt.isEmpty()) {
-                    emitter.error(new OauthErrorResponseException(INVALID_GRANT, "refresh token not found", null));
-                    return;
-                }
+				if (tokenOpt.isEmpty()) {
+					emitter.error(new OauthErrorResponseException(INVALID_GRANT, "refresh token not found", null));
+					return;
+				}
 
-                RefreshToken token = tokenOpt.get();
+				RefreshToken token = tokenOpt.get();
 
-                if (token.revoked()) {
-                    emitter.error(new OauthErrorResponseException(INVALID_GRANT, "refresh token revoked", null));
-                    return;
-                }
+				if (token.revoked()) {
+					emitter.error(new OauthErrorResponseException(INVALID_GRANT, "refresh token revoked", null));
+					return;
+				}
 
-                emitter.next(Authentication.build(token.username()));
-                emitter.complete();
+				emitter.next(Authentication.build(token.username()));
+				emitter.complete();
 
-            } catch (IllegalArgumentException e) {
-                emitter.error(new OauthErrorResponseException(INVALID_GRANT, "invalid refresh token", null));
-            }
-        }, FluxSink.OverflowStrategy.ERROR);
-    }
+			} catch (IllegalArgumentException e) {
+				emitter.error(new OauthErrorResponseException(INVALID_GRANT, "invalid refresh token", null));
+			}
+		}, FluxSink.OverflowStrategy.ERROR);
+	}
 }

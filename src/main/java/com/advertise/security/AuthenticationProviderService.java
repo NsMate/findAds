@@ -16,36 +16,34 @@ import reactor.core.publisher.Mono;
 @Singleton
 public class AuthenticationProviderService<B> implements HttpRequestReactiveAuthenticationProvider<B> {
 
-    private final UserRepository users;
-    private final BCryptPasswordEncoderService passwordEncoder;
+	private final UserRepository users;
+	private final BCryptPasswordEncoderService passwordEncoder;
 
-    public AuthenticationProviderService(UserRepository users,
-                                         BCryptPasswordEncoderService passwordEncoder) {
-        this.users = users;
-        this.passwordEncoder = passwordEncoder;
-    }
+	public AuthenticationProviderService(UserRepository users, BCryptPasswordEncoderService passwordEncoder) {
+		this.users = users;
+		this.passwordEncoder = passwordEncoder;
+	}
 
-    @Override
-    public Publisher<AuthenticationResponse> authenticate(
-            @Nullable HttpRequest<B> httpRequest,
-            AuthenticationRequest<String, String> authRequest) {
+	@Override
+	public Publisher<AuthenticationResponse> authenticate(@Nullable HttpRequest<B> httpRequest,
+			AuthenticationRequest<String, String> authRequest) {
 
-        return Mono.fromCallable(() -> {
-            String username = authRequest.getIdentity();
-            String password = authRequest.getSecret();
+		return Mono.fromCallable(() -> {
+			String username = authRequest.getIdentity();
+			String password = authRequest.getSecret();
 
-            User user = users.findByNameEquals(username).orElse(null);
+			User user = users.findByNameEquals(username).orElse(null);
 
-            if (user == null) {
-                passwordEncoder.matches(password, "$2a$10$dummyHashToPreventTimingAttacks");
-                return AuthenticationResponse.failure(AuthenticationFailureReason.CREDENTIALS_DO_NOT_MATCH);
-            }
+			if (user == null) {
+				passwordEncoder.matches(password, "$2a$10$dummyHashToPreventTimingAttacks");
+				return AuthenticationResponse.failure(AuthenticationFailureReason.CREDENTIALS_DO_NOT_MATCH);
+			}
 
-            if (!passwordEncoder.matches(password, user.passwordHash())) {
-                return AuthenticationResponse.failure(AuthenticationFailureReason.CREDENTIALS_DO_NOT_MATCH);
-            }
+			if (!passwordEncoder.matches(password, user.passwordHash())) {
+				return AuthenticationResponse.failure(AuthenticationFailureReason.CREDENTIALS_DO_NOT_MATCH);
+			}
 
-            return AuthenticationResponse.success(username);
-        });
-    }
+			return AuthenticationResponse.success(username);
+		});
+	}
 }

@@ -12,9 +12,9 @@ import java.security.Principal;
 @Controller("/hello")
 public class HelloController {
 
-    @Get(produces = MediaType.TEXT_PLAIN)
-    public String hello(Principal principal) {
-        System.out.println(principal.getName());
-        return "Hello World";
-    }
+	@Get(produces = MediaType.TEXT_PLAIN)
+	public String hello(Principal principal) {
+		System.out.println(principal.getName());
+		return "Hello World";
+	}
 }

@@ -13,19 +13,15 @@ import java.util.Optional;
 @Replaces(HttpHeaderTokenReader.class)
 public class CookieTokenReader implements TokenReader<HttpRequest<?>> {
 
-    @Override
-    public Optional<String> findToken(HttpRequest<?> request) {
-        Optional<String> authHeader = request.getHeaders()
-                .findFirst("Authorization")
-                .filter(header -> header.startsWith("Bearer "))
-                .map(header -> header.substring(7));
+	@Override
+	public Optional<String> findToken(HttpRequest<?> request) {
+		Optional<String> authHeader = request.getHeaders().findFirst("Authorization")
+				.filter(header -> header.startsWith("Bearer ")).map(header -> header.substring(7));
 
-        if (authHeader.isPresent()) {
-            return authHeader;
-        }
+		if (authHeader.isPresent()) {
+			return authHeader;
+		}
 
-        return request.getCookies()
-                .findCookie("access_token")
-                .map(Cookie::getValue);
-    }
+		return request.getCookies().findCookie("access_token").map(Cookie::getValue);
+	}
 }
