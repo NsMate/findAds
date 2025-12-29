@@ -6,6 +6,7 @@ import com.advertise.entity.User;
 import com.advertise.exception.DefaultErrorCodes;
 import com.advertise.exception.ErrorResponse;
 import com.advertise.exception.UserAlreadyExistsException;
+import com.advertise.repository.RefreshTokenRepository;
 import com.advertise.security.AuthenticationProviderService;
 import com.advertise.service.RegisterService;
 import io.micronaut.core.async.annotation.SingleResult;
@@ -29,27 +30,29 @@ import jakarta.validation.Valid;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
 
+import java.security.Principal;
 import java.time.Duration;
 import java.util.Map;
 
 @Controller
 public class UserController {
 
-    private static final Duration ACCESS_TOKEN_TTL = Duration.ofMinutes(15);
     private static final Duration REFRESH_TOKEN_TTL = Duration.ofDays(7);
 
     private final RegisterService registerService;
     private final AuthenticationProviderService authenticationProviderService;
     private final AccessRefreshTokenGenerator tokenGenerator;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     @Inject
     public UserController(
             RegisterService registerService,
             AuthenticationProviderService authenticationProviderService,
-            AccessRefreshTokenGenerator tokenGenerator) {
+            AccessRefreshTokenGenerator tokenGenerator, RefreshTokenRepository refreshTokenRepository) {
         this.registerService = registerService;
         this.authenticationProviderService = authenticationProviderService;
         this.tokenGenerator = tokenGenerator;
+        this.refreshTokenRepository = refreshTokenRepository;
     }
 
     @Post("/login")
@@ -69,14 +72,28 @@ public class UserController {
                             tokenGenerator.generate(auth.getAuthentication().get()).orElseThrow();
 
                     MutableHttpResponse<Map<String, String>> response = HttpResponse.ok(
-                            Map.of("message", "Login successful", "username", tokens.getUsername())
+                            Map.of("message", "Login successful", "username", tokens.getUsername(),
+                                    "access_token", tokens.getAccessToken())
                     );
 
-                    response.cookie(createCookie("access_token", tokens.getAccessToken(), ACCESS_TOKEN_TTL));
                     response.cookie(createCookie("refresh_token", tokens.getRefreshToken(), REFRESH_TOKEN_TTL));
 
                     return response;
                 });
+    }
+
+    @Post("/logout")
+    @Secured(SecurityRule.IS_AUTHENTICATED)
+    public HttpResponse<?> logout(Principal principal) {
+        refreshTokenRepository.deleteAllByUsername(principal.getName());
+
+        MutableHttpResponse<Map<String, String>> response = HttpResponse.ok(
+                Map.of("message", "Logged out successfully")
+        );
+
+        response.cookie(expireCookie("refresh_token"));
+
+        return response;
     }
 
     @Post("/register")

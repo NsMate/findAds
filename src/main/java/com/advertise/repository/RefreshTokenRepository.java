@@ -19,5 +19,7 @@ public interface RefreshTokenRepository extends CrudRepository<RefreshToken, Lon
 
     Optional<RefreshToken> findByUsername(@NonNull @NotBlank String username);
 
+    void deleteAllByUsername(@NonNull @NotBlank String username);
+
     long deleteByDateCreatedBefore(@NonNull Instant createdAt);
 }

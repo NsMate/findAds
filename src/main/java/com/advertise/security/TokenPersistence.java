@@ -12,9 +12,7 @@ import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.Base64;
 import java.util.Optional;
 
 import static io.micronaut.security.errors.IssuingAnAccessTokenErrorCode.INVALID_GRANT;
@@ -65,8 +63,7 @@ public class TokenPersistence implements RefreshTokenPersistence {
     public Publisher<Authentication> getAuthentication(String jwt) {
         return Flux.create(emitter -> {
             try {
-                String reference = decodeJWT(jwt);
-                Optional<RefreshToken> tokenOpt = repository.findByRefreshToken(reference);
+                Optional<RefreshToken> tokenOpt = repository.findByRefreshToken(jwt);
 
                 if (tokenOpt.isEmpty()) {
                     emitter.error(new OauthErrorResponseException(INVALID_GRANT, "refresh token not found", null));
@@ -87,17 +84,5 @@ public class TokenPersistence implements RefreshTokenPersistence {
                 emitter.error(new OauthErrorResponseException(INVALID_GRANT, "invalid refresh token", null));
             }
         }, FluxSink.OverflowStrategy.ERROR);
-    }
-
-    private String decodeJWT(String jwt) {
-        String[] parts = jwt.split("\\.");
-        if (parts.length != 3) {
-            throw new IllegalArgumentException("Malformed JWT");
-        }
-
-        byte[] decoded = Base64.getUrlDecoder().decode(parts[1]);
-        String payload = new String(decoded, StandardCharsets.UTF_8);
-
-        return payload.trim().replace("\"", "");
     }
 }
