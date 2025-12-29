@@ -10,7 +10,7 @@ import jakarta.validation.constraints.NotNull;
 
 import java.time.Instant;
 
-@MappedEntity
+@MappedEntity("refresh_token")
 public record RefreshToken(
     @Id @GeneratedValue @NonNull Long id,
     @NonNull @NotBlank String username,

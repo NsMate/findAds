@@ -7,7 +7,6 @@ import io.micronaut.security.errors.OauthErrorResponseException;
 import io.micronaut.security.token.event.RefreshTokenGeneratedEvent;
 import io.micronaut.security.token.refresh.RefreshTokenPersistence;
 import jakarta.inject.Singleton;
-import jakarta.transaction.Transactional;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
@@ -27,7 +26,6 @@ public class TokenPersistence implements RefreshTokenPersistence {
     }
 
     @Override
-    @Transactional
     public void persistToken(RefreshTokenGeneratedEvent event) {
         if (event == null || event.getRefreshToken() == null ||
                 event.getAuthentication() == null || event.getAuthentication().getName() == null) {
@@ -37,25 +35,16 @@ public class TokenPersistence implements RefreshTokenPersistence {
         String username = event.getAuthentication().getName();
         String reference = event.getRefreshToken();
 
-        try {
-            Optional<RefreshToken> existing = repository.findByUsername(username);
+        int updated = repository.updateByUsername(username, reference);
 
-            if (existing.isPresent()) {
-                RefreshToken updated = new RefreshToken(
-                        existing.get().id(),
-                        username,
-                        reference,
-                        false,
-                        Instant.now()
-                );
-                repository.update(updated);
-            } else {
-                RefreshToken token = new RefreshToken(null, username, reference,false, Instant.now());
-                repository.save(token);
-            }
-
-        } catch (Exception e) {
-            throw new RuntimeException(e.getMessage(), e);
+        if (updated == 0) {
+            repository.save(new RefreshToken(
+                    null,
+                    username,
+                    reference,
+                    false,
+                    Instant.now()
+            ));
         }
     }
 

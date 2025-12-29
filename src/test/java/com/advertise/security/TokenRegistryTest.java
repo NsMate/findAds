@@ -16,55 +16,63 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@MicronautTest
+@MicronautTest(transactional = false)
 class TokenRegistryTest {
 
     @Inject @Client("/") HttpClient client;
     @Inject UserRepository users;
-    @Inject RefreshTokenRepository tokens;
+    @Inject RefreshTokenRepository refreshTokenRepository;
     @Inject PasswordEncoder encoder;
 
     @BeforeEach
     void setup() {
-        tokens.deleteAll();
+        refreshTokenRepository.deleteAll();
         users.deleteAll();
         users.save(new User(null, "alice@test.com", "alice", encoder.encode("pass"), Instant.now()));
     }
 
     @Test
     void refreshTokenCreatesNewAccessToken() throws InterruptedException {
-        Cookie oldAccess = login("alice", "pass");
+        String oldAccess = login("alice", "pass");
         Cookie refresh = getRefreshToken();
 
         Thread.sleep(1000);
 
-        Cookie newAccess = refresh(refresh);
+        String newAccess = refresh(refresh);
 
-        assertNotEquals(oldAccess.getValue(), newAccess.getValue());
+        assertNotEquals(oldAccess, newAccess);
         assertTrue(canAccessProtectedEndpoint(newAccess));
     }
 
     @Test
     void revokedTokenFails() {
-        Cookie refresh = login("alice", "pass");
-        tokens.deleteAll();
+        Cookie token = getRefreshToken();
 
-        assertThrows(Exception.class, () -> refresh(getRefreshToken()));
+        refreshTokenRepository.deleteAll();
+        assertThrows(Exception.class, () -> refresh(token));
     }
 
-    private Cookie login(String username, String password) {
+    private String login(String username, String password) {
         HttpResponse<?> response = client.toBlocking().exchange(
                 HttpRequest.POST("/login", Map.of("username", username, "password", password))
                         .header("X-Client-Type", "web"),
                 Map.class
         );
-        return response.getCookie("access_token").orElseThrow();
+        Optional<LinkedHashMap> bodyOpt = response.getBody(LinkedHashMap.class);
+
+        if (bodyOpt.isPresent()) {
+            return (String) bodyOpt.get().get("access_token");
+        }
+
+        return "";
     }
 
     private Cookie getRefreshToken() {
@@ -76,20 +84,26 @@ class TokenRegistryTest {
         return response.getCookie("refresh_token").orElseThrow();
     }
 
-    private Cookie refresh(Cookie refreshToken) {
+    private String refresh(Cookie refreshToken) {
         HttpResponse<Map> response = client.toBlocking().exchange(
-                HttpRequest.POST("/auth/access_token",
+                HttpRequest.POST("/oauth/access_token",
                                 Map.of("grant_type", "refresh_token", "refresh_token", refreshToken.getValue()))
                         .header("X-Client-Type", "web"),
                 Map.class
         );
-        return response.getCookie("access_token").orElseThrow();
+        Optional<LinkedHashMap> bodyOpt = response.getBody(LinkedHashMap.class);
+
+        if (bodyOpt.isPresent()) {
+            return (String) bodyOpt.get().get("access_token");
+        }
+
+        return "";
     }
 
-    private boolean canAccessProtectedEndpoint(Cookie accessToken) {
+    private boolean canAccessProtectedEndpoint(String accessToken) {
         try {
             HttpResponse<String> response = client.toBlocking().exchange(
-                    HttpRequest.GET("/hello").cookie(accessToken),
+                    HttpRequest.GET("/hello").bearerAuth(accessToken),
                     String.class
             );
             return response.status() == HttpStatus.OK;

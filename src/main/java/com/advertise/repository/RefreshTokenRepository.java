@@ -17,7 +17,7 @@ public interface RefreshTokenRepository extends CrudRepository<RefreshToken, Lon
 
     Optional<RefreshToken> findByRefreshToken(@NonNull @NotBlank String refreshToken);
 
-    Optional<RefreshToken> findByUsername(@NonNull @NotBlank String username);
+    int updateByUsername(@NotBlank String username, @NonNull @NotBlank String refreshToken);
 
     void deleteAllByUsername(@NonNull @NotBlank String username);
 
